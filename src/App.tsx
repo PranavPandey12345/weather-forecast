@@ -1,0 +1,153 @@
+import './App.css'
+import React, { useState, useEffect } from 'react'
+import { assets } from './assets/assets'
+import SearchBar from './components/SearchBar'
+import CurrentWeather from './components/CurrentWeather'
+import Forecast from './components/Forecast'
+import Hourly from './components/Hourly'
+import { geocode, fetchWeather } from './utils/api'
+
+function App() {
+  const [query, setQuery] = useState('Berlin')
+  const [units, setUnits] = useState('metric')
+  const [coords, setCoords] = useState(null)
+  const [data, setData] = useState(null)
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [searchSuggestions, setSearchSuggestions] = useState([])
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const matches = await geocode(query)
+        if (!matches || matches.length === 0) {
+          setError('No search result found!')
+          setLoading(false)
+          return
+        }
+        const { latitude, longitude, name, country } = matches[0]
+        setCoords({ latitude, longitude, name, country })
+        const w = await fetchWeather(latitude, longitude, units)
+        setData(w)
+        setSelectedDayIndex(0)
+      } catch {
+        setError('Something went wrong')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [query, units])
+
+  return (
+    <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-950 text-white">
+      {/* Header */}
+      <header className="px-6 lg:px-12 py-8 border-b border-slate-700">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 max-w-7xl mx-auto">
+          <div className="flex items-center gap-3">
+            <img src={assets.logo} alt="Weather Now" className="w-10 h-10" />
+            <span className="text-2xl font-bold">Weather Now</span>
+          </div>
+          <SearchBar
+            query={query}
+            onSearch={setQuery}
+            units={units}
+            setUnits={setUnits}
+            suggestions={searchSuggestions}
+            onSuggestionsChange={setSearchSuggestions}
+          />
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="px-6 lg:px-12 py-16">
+        <div className="max-w-7xl mx-auto">
+          {/* Heading */}
+          <h1 className="text-4xl lg:text-6xl font-bold mb-16 text-center">How's the sky looking today?</h1>
+
+          {/* Loading State */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-32">
+              <img src={assets.loading} alt="Loading" className="w-16 h-16 animate-spin mb-6" />
+              <p className="text-gray-400 text-lg">Search in progress</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && !loading && (
+            <div className="flex flex-col items-center justify-center py-32">
+              <img src={assets.error} alt="Error" className="w-16 h-16 mb-6" />
+              <p className="text-2xl font-semibold mb-6">{error}</p>
+              {error === 'Something went wrong' && (
+                <button
+                  onClick={() => setQuery('Berlin')}
+                  className="flex items-center gap-2 px-8 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-lg"
+                >
+                  <img src={assets.retry} alt="Retry" className="w-5 h-5" />
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Weather Content */}
+          {!loading && data && coords && (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              {/* Left Column - 3 cols */}
+              <div className="lg:col-span-3 space-y-8">
+                {/* Current Weather */}
+                <CurrentWeather
+                  current={data.current_weather}
+                  location={coords}
+                  units={units}
+                  daily={data.daily}
+                />
+
+                {/* Weather Details */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                  <WeatherMetric label="Feels Like" value={`${Math.round(data.current_weather.temperature)}°`} />
+                  <WeatherMetric label="Humidity" value={`${data.current_weather.relativehumidity || 46}%`} />
+                  <WeatherMetric label="Wind" value={`${Math.round(data.current_weather.windspeed)} ${units === 'metric' ? 'km/h' : 'mph'}`} />
+                  <WeatherMetric label="Precipitation" value={`${data.daily.precipitation_sum?.[0] || 0} ${units === 'metric' ? 'mm' : 'in'}`} />
+                </div>
+
+                {/* Daily Forecast */}
+                <Forecast
+                  daily={data.daily}
+                  units={units}
+                  onSelectDay={setSelectedDayIndex}
+                  selectedIndex={selectedDayIndex}
+                />
+              </div>
+
+              {/* Right Column - Hourly - 1 col */}
+              <div className="lg:col-span-1">
+                <Hourly
+                  hourly={data.hourly}
+                  units={units}
+                  selectedDayIndex={selectedDayIndex}
+                  daily={data.daily}
+                  onSelectDay={setSelectedDayIndex}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function WeatherMetric({ label, value }) {
+  return (
+    <div className="bg-slate-800 rounded-xl p-6 hover:bg-slate-700 transition">
+      <p className="text-gray-400 text-sm mb-3 font-medium">{label}</p>
+      <p className="text-3xl lg:text-4xl font-bold">{value}</p>
+    </div>
+  )
+}
+
+export default App
