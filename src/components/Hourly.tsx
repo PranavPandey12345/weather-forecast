@@ -1,20 +1,57 @@
 import React, { useState, useEffect } from 'react'
 import { assets } from '../assets/assets'
 
-function groupHoursByDay(hourly, daily) {
-  const groups = {}
-  hourly.time.forEach((t, idx) => {
+interface HourlyGroup {
+  time: string[]
+  temp: number[]
+}
+
+interface HourlyData {
+  time: string[]
+  temperature_2m: number[]
+  relativehumidity_2m: number[]
+  windspeed_10m: number[]
+  precipitation: number[]
+}
+
+interface DailyData {
+  time: string[]
+  weathercode: number[]
+  temperature_2m_max: number[]
+  temperature_2m_min: number[]
+  precipitation_sum: number[]
+}
+
+interface HourlyProps {
+  hourly: HourlyData
+  units: 'metric' | 'imperial'
+  selectedDayIndex: number
+  daily: DailyData
+  onSelectDay: (index: number) => void
+}
+
+function groupHoursByDay(hourly: HourlyData, daily: DailyData): HourlyGroup[] {
+  const groups: { [key: string]: HourlyGroup } = {}
+  hourly.time.forEach((t: string, idx: number) => {
     const day = new Date(t).toISOString().slice(0, 10)
-    groups[day] = groups[day] || { time: [], temp: [] }
+    if (!groups[day]) {
+      groups[day] = { time: [], temp: [] }
+    }
     groups[day].time.push(t)
     groups[day].temp.push(hourly.temperature_2m[idx])
   })
-  return daily.time.map((d) => groups[d] || { time: [], temp: [] })
+  return daily.time.map((d: string) => groups[d] || { time: [], temp: [] })
 }
 
-export default function Hourly({ hourly, units, selectedDayIndex, daily, onSelectDay }) {
-  const [showDayMenu, setShowDayMenu] = useState(false)
-  const [localSelectedDay, setLocalSelectedDay] = useState(selectedDayIndex)
+export default function Hourly({
+  hourly,
+  units,
+  selectedDayIndex,
+  daily,
+  onSelectDay
+}: HourlyProps) {
+  const [showDayMenu, setShowDayMenu] = useState<boolean>(false)
+  const [localSelectedDay, setLocalSelectedDay] = useState<number>(selectedDayIndex)
 
   useEffect(() => {
     setLocalSelectedDay(selectedDayIndex)
@@ -25,7 +62,7 @@ export default function Hourly({ hourly, units, selectedDayIndex, daily, onSelec
 
   const dayName = new Date(daily.time[localSelectedDay]).toLocaleDateString('en-US', { weekday: 'long' })
 
-  const handleSelectDay = (dayIndex) => {
+  const handleSelectDay = (dayIndex: number) => {
     setLocalSelectedDay(dayIndex)
     onSelectDay(dayIndex)
     setShowDayMenu(false)
@@ -67,7 +104,7 @@ export default function Hourly({ hourly, units, selectedDayIndex, daily, onSelec
           const hour = new Date(t).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
           const temp = units === 'metric'
             ? Math.round(group.temp[i])
-            : Math.round((group.temp[i] * 9/5) + 32)
+            : Math.round((group.temp[i] * 9 / 5) + 32)
 
           return (
             <div key={t} className="flex items-center justify-between p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition">

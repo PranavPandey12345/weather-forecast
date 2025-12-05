@@ -1,7 +1,37 @@
 import { useQuery } from '@tanstack/react-query'
 
-// small helper: geocode via Open-Meteo geocoding, then forecast
-export async function geocode(name: string) {
+interface GeocodingResult {
+  latitude: number
+  longitude: number
+  name: string
+  country: string
+}
+
+interface WeatherDataResponse {
+  current_weather: {
+    temperature: number
+    windspeed: number
+    relativehumidity: number
+    weathercode: number
+  }
+  hourly: {
+    time: string[]
+    temperature_2m: number[]
+    relativehumidity_2m: number[]
+    windspeed_10m: number[]
+    precipitation: number[]
+  }
+  daily: {
+    time: string[]
+    weathercode: number[]
+    temperature_2m_max: number[]
+    temperature_2m_min: number[]
+    precipitation_sum: number[]
+  }
+  timezone: string
+}
+
+export async function geocode(name: string): Promise<GeocodingResult[]> {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
     name
   )}&count=5&language=en&format=json`
@@ -11,7 +41,10 @@ export async function geocode(name: string) {
   return json.results || []
 }
 
-export async function fetchWeatherData(latitude: number, longitude: number) {
+export async function fetchWeatherData(
+  latitude: number,
+  longitude: number
+): Promise<WeatherDataResponse> {
   const params = new URLSearchParams({
     latitude: latitude.toString(),
     longitude: longitude.toString(),
@@ -27,7 +60,10 @@ export async function fetchWeatherData(latitude: number, longitude: number) {
 }
 
 // React Query hook for fetching weather
-export function useWeatherData(latitude: number | null, longitude: number | null) {
+export function useWeatherData(
+  latitude: number | null,
+  longitude: number | null
+): UseQueryResult<WeatherDataResponse, Error> {
   return useQuery({
     queryKey: ['weather', latitude, longitude],
     queryFn: () => {

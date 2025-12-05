@@ -7,63 +7,81 @@ import Forecast from './components/Forecast'
 import Hourly from './components/Hourly'
 import { geocode, useWeatherData } from './utils/api'
 
+interface Coordinates {
+  latitude: number
+  longitude: number
+  name: string
+  country: string
+}
+
+interface CurrentWeather {
+  temperature: number
+  windspeed: number
+  relativehumidity: number
+  weathercode: number
+}
+
+interface GeocodingSuggestion {
+  latitude: number
+  longitude: number
+  name: string
+  country: string
+}
+
 function App() {
-  const [query, setQuery] = useState('Berlin')
-  const [units, setUnits] = useState('metric')
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number; name: string; country: string } | null>(null)
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0)
-  const [searchSuggestions, setSearchSuggestions] = useState([])
+  const [query, setQuery] = useState<string>('Berlin')
+  const [units, setUnits] = useState<'metric' | 'imperial'>('metric')
+  const [coords, setCoords] = useState<Coordinates | null>(null)
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0)
+  const [searchSuggestions, setSearchSuggestions] = useState<GeocodingSuggestion[]>([])
   const [error, setError] = useState<string | null>(null)
 
   // Use React Query hook for fetching weather
-  const { data: data, isLoading: loading, isError, error: queryError } = useWeatherData(coords?.latitude ?? null, coords?.longitude ?? null)
+  const { data, isLoading: loading, isError, error: queryError } = useWeatherData(
+    coords?.latitude ?? null,
+    coords?.longitude ?? null
+  )
 
-  // Handle search
-  // --- replace handleSearch + the two useEffect blocks with this ---
+  // Derive error from React Query
+  const apiError: string | null = isError && queryError
+    ? (queryError instanceof Error ? queryError.message : 'Failed to fetch weather')
+    : null
 
-// remove the previous handleSearch function and the two useEffect calls
-// and add:
+  // Effect: when `query` changes, perform geocoding and update coords
+  useEffect(() => {
+    let mounted: boolean = true
 
-// derived error from React Query (do not set state inside an effect)
-const apiError = isError && queryError
-  ? (queryError instanceof Error ? queryError.message : 'Failed to fetch weather')
-  : null
+    const doSearch = async (): Promise<void> => {
+      // Reset any previous local error before starting
+      if (mounted) setError(null)
 
-// effect: when `query` changes, perform geocoding and update coords
-useEffect(() => {
-  let mounted = true
-
-  const doSearch = async () => {
-    // reset any previous local error before starting
-    if (mounted) setError(null)
-
-    try {
-      const matches = await geocode(query)
-      if (!matches || matches.length === 0) {
+      try {
+        const matches = await geocode(query)
+        if (!matches || matches.length === 0) {
+          if (!mounted) return
+          setError('No search result found!')
+          return
+        }
+        const { latitude, longitude, name, country } = matches[0]
         if (!mounted) return
-        setError('No search result found!')
-        return
+        setCoords({ latitude, longitude, name, country })
+        setSelectedDayIndex(0)
+      } catch {
+        if (!mounted) return
+        setError('Something went wrong')
       }
-      const { latitude, longitude, name, country } = matches[0]
-      if (!mounted) return
-      setCoords({ latitude, longitude, name, country })
-      setSelectedDayIndex(0)
-    } catch {
-      if (!mounted) return
-      setError('Something went wrong')
     }
-  }
 
-  // run the async search
-  doSearch()
+    // Run the async search
+    doSearch()
 
-  return () => {
-    mounted = false
-  }
-}, [query])
+    return () => {
+      mounted = false
+    }
+  }, [query])
 
-// --- end replacement ---
-const displayError = error ?? apiError
+  // Combine local error and API error for display
+  const displayError: string | null = error ?? apiError
 
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-950 text-white">
@@ -119,8 +137,8 @@ const displayError = error ?? apiError
           {displayError && !loading && (
             <div className="flex flex-col items-center justify-center py-32">
               <img src={assets.error} alt="Error" className="w-16 h-16 mb-6" />
-              <p className="text-2xl font-semibold mb-6">{error}</p>
-              {error === 'Something went wrong' && (
+              <p className="text-2xl font-semibold mb-6">{displayError}</p>
+              {displayError === 'Something went wrong' && (
                 <button
                   onClick={() => setQuery('Berlin')}
                   className="flex items-center gap-2 px-8 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-lg"
@@ -180,7 +198,12 @@ const displayError = error ?? apiError
   )
 }
 
-function WeatherMetric({ label, value }: { label: string; value: string }) {
+interface WeatherMetricProps {
+  label: string
+  value: string
+}
+
+function WeatherMetric({ label, value }: WeatherMetricProps) {
   return (
     <div className="bg-slate-800 rounded-xl p-6 hover:bg-slate-700 transition">
       <p className="text-gray-400 text-sm mb-3 font-medium">{label}</p>
