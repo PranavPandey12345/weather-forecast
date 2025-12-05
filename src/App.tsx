@@ -1,5 +1,5 @@
 import './App.css'
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { assets } from './assets/assets'
 import SearchBar from './components/SearchBar'
 import CurrentWeather from './components/CurrentWeather'
