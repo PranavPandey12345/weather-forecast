@@ -61,7 +61,8 @@ export default function Hourly({ hourly, units, selectedDayIndex, daily, onSelec
         </div>
       </div>
 
-      <div className="space-y-3 max-h-[600px] overflow-y-auto">
+      {/* Hourly list — hide scrollbar with no-scrollbar class */}
+      <div className="space-y-3 max-h-[600px] overflow-y-auto no-scrollbar">
         {group.time.slice(0, 24).map((t, i) => {
           const hour = new Date(t).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
           const temp = units === 'metric'

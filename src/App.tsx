@@ -5,60 +5,86 @@ import SearchBar from './components/SearchBar'
 import CurrentWeather from './components/CurrentWeather'
 import Forecast from './components/Forecast'
 import Hourly from './components/Hourly'
-import { geocode, fetchWeather } from './utils/api'
+import { geocode, useWeatherData } from './utils/api'
 
 function App() {
   const [query, setQuery] = useState('Berlin')
   const [units, setUnits] = useState('metric')
-  const [coords, setCoords] = useState(null)
-  const [data, setData] = useState(null)
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number; name: string; country: string } | null>(null)
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
   const [searchSuggestions, setSearchSuggestions] = useState([])
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const matches = await geocode(query)
-        if (!matches || matches.length === 0) {
-          setError('No search result found!')
-          setLoading(false)
-          return
-        }
-        const { latitude, longitude, name, country } = matches[0]
-        setCoords({ latitude, longitude, name, country })
-        const w = await fetchWeather(latitude, longitude, units)
-        setData(w)
-        setSelectedDayIndex(0)
-      } catch {
-        setError('Something went wrong')
-      } finally {
-        setLoading(false)
+  // Use React Query hook for fetching weather
+  const { data: data, isLoading: loading, isError, error: queryError } = useWeatherData(coords?.latitude ?? null, coords?.longitude ?? null)
+
+  // Handle search
+  // --- replace handleSearch + the two useEffect blocks with this ---
+
+// remove the previous handleSearch function and the two useEffect calls
+// and add:
+
+// derived error from React Query (do not set state inside an effect)
+const apiError = isError && queryError
+  ? (queryError instanceof Error ? queryError.message : 'Failed to fetch weather')
+  : null
+
+// effect: when `query` changes, perform geocoding and update coords
+useEffect(() => {
+  let mounted = true
+
+  const doSearch = async () => {
+    // reset any previous local error before starting
+    if (mounted) setError(null)
+
+    try {
+      const matches = await geocode(query)
+      if (!matches || matches.length === 0) {
+        if (!mounted) return
+        setError('No search result found!')
+        return
       }
+      const { latitude, longitude, name, country } = matches[0]
+      if (!mounted) return
+      setCoords({ latitude, longitude, name, country })
+      setSelectedDayIndex(0)
+    } catch {
+      if (!mounted) return
+      setError('Something went wrong')
     }
-    load()
-  }, [query, units])
+  }
+
+  // run the async search
+  doSearch()
+
+  return () => {
+    mounted = false
+  }
+}, [query])
+
+// --- end replacement ---
+const displayError = error ?? apiError
 
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-900 to-slate-950 text-white">
       {/* Header */}
-      <header className="px-6 lg:px-12 py-8 border-b border-slate-700">
+      <header className="px-6 lg:px-12 py-8">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
-            <img src={assets.logo} alt="Weather Now" className="w-10 h-10" />
-            <span className="text-2xl font-bold">Weather Now</span>
+            <img src={assets.logo} alt="Weather Now" className="w-70 h-70" />
           </div>
-          <SearchBar
-            query={query}
-            onSearch={setQuery}
-            units={units}
-            setUnits={setUnits}
-            suggestions={searchSuggestions}
-            onSuggestionsChange={setSearchSuggestions}
-          />
+          {/* Units Section in Header */}
+          <div className="ml-auto">
+            <SearchBar
+              query={query}
+              onSearch={setQuery}
+              units={units}
+              setUnits={setUnits}
+              suggestions={searchSuggestions}
+              onSuggestionsChange={setSearchSuggestions}
+              headerMode={true}
+            />
+          </div>
         </div>
       </header>
 
@@ -66,7 +92,20 @@ function App() {
       <main className="px-6 lg:px-12 py-16">
         <div className="max-w-7xl mx-auto">
           {/* Heading */}
-          <h1 className="text-4xl lg:text-6xl font-bold mb-16 text-center">How's the sky looking today?</h1>
+          <h1 className="text-4xl lg:text-6xl font-bold mb-12 text-center">How's the sky looking today?</h1>
+
+          {/* Search Bar Below Heading */}
+          <div className="max-w-3xl mx-auto mb-12 px-4">
+            <SearchBar
+              query={query}
+              onSearch={setQuery}
+              units={units}
+              setUnits={setUnits}
+              suggestions={searchSuggestions}
+              onSuggestionsChange={setSearchSuggestions}
+              headerMode={false}
+            />
+          </div>
 
           {/* Loading State */}
           {loading && (
@@ -77,7 +116,7 @@ function App() {
           )}
 
           {/* Error State */}
-          {error && !loading && (
+          {displayError && !loading && (
             <div className="flex flex-col items-center justify-center py-32">
               <img src={assets.error} alt="Error" className="w-16 h-16 mb-6" />
               <p className="text-2xl font-semibold mb-6">{error}</p>
@@ -141,7 +180,7 @@ function App() {
   )
 }
 
-function WeatherMetric({ label, value }) {
+function WeatherMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-slate-800 rounded-xl p-6 hover:bg-slate-700 transition">
       <p className="text-gray-400 text-sm mb-3 font-medium">{label}</p>
